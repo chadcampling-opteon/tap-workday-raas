@@ -23,7 +23,7 @@ from tap_workday_raas.client import (
     resolve_request_timeout,
     stream_report,
 )
-from tap_workday_raas.datetime_formats import DEFAULT_BOOKMARK_FORMAT
+from tap_workday_raas.datetime_formats import DEFAULT_BOOKMARK_FORMAT, BookmarkFormat
 from tap_workday_raas.transform import coerce_record
 
 if sys.version_info >= (3, 12):
@@ -44,7 +44,7 @@ class WorkdayRaasStream(Stream):
 
     report_url: ClassVar[str] = ""
     state_param: ClassVar[str | None] = None
-    state_param_format: ClassVar[str] = DEFAULT_BOOKMARK_FORMAT
+    state_param_format: ClassVar[BookmarkFormat] = DEFAULT_BOOKMARK_FORMAT
     report_config: ClassVar[Mapping[str, Any]]
 
     @property

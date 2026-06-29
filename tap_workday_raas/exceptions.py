@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NoReturn
 
+from requests.exceptions import ConnectionError as RequestsConnectionError
 from singer_sdk.exceptions import FatalAPIError
 
 if TYPE_CHECKING:
@@ -82,7 +83,7 @@ def map_http_error(
     return WorkdayRaasError(str(exc), "workday.WorkdayApiError")
 
 
-def map_connection_error(exc: ConnectionError, report_url: str) -> WorkdayRaasError:
+def map_connection_error(exc: RequestsConnectionError, report_url: str) -> WorkdayRaasError:
     """Map a requests ConnectionError to a WorkdayRaasError."""
     message = str(exc)
     if (

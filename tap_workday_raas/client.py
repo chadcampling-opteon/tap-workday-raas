@@ -14,12 +14,12 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from datetime import date, datetime
 from typing import Any
 from urllib.parse import quote, unquote, urlencode, urlsplit, urlunsplit
 
-import ijson
+import ijson  # type: ignore[import-untyped]
 import requests
 
 from tap_workday_raas.exceptions import (
@@ -39,18 +39,13 @@ logger = logging.getLogger(__name__)
 DEFAULT_REQUEST_TIMEOUT = 300.0
 
 
-def resolve_request_timeout(config: dict[str, Any]) -> float | None:
+def resolve_request_timeout(config: Mapping[str, Any]) -> float | None:
     """Return HTTP timeout in seconds, or ``None`` to wait indefinitely."""
     if "request_timeout" in config:
         value = config["request_timeout"]
         return None if value is None else float(value)
     return DEFAULT_REQUEST_TIMEOUT
 
-
-def _requests_timeout_kwargs(timeout: float | None) -> dict[str, float]:
-    if timeout is None:
-        return {}
-    return {"timeout": timeout}
 
 def _parse_query_string(query: str) -> dict[str, str]:
     """Decode a query string into raw parameter values.
@@ -163,7 +158,7 @@ def stream_report(
             report_url,
             auth=(user, password),
             stream=True,
-            **_requests_timeout_kwargs(timeout),
+            timeout=timeout,
         ) as resp:
             resp.raise_for_status()
             # Decode Content-Encoding (e.g. gzip) on the socket stream. Without
@@ -197,7 +192,7 @@ def download_xsd(
         response = requests.get(
             xsds_url,
             auth=(user, password),
-            **_requests_timeout_kwargs(timeout),
+            timeout=timeout,
         )
         response.raise_for_status()
     except requests.exceptions.HTTPError as exc:
