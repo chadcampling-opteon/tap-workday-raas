@@ -1,8 +1,8 @@
-import unittest
-from tap_workday_raas import discover
+"""Tests for XSD schema discovery."""
 
+from tap_workday_raas.discovery import generate_schema_for_report
 
-xsd = """<?xml version="1.0" encoding="UTF-8"?>
+XSD = """<?xml version="1.0" encoding="UTF-8"?>
 <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:wd="urn:com.workday.report/Stitch_Testing_2" xmlns:nyw="urn:com.netyourwork/aod" elementFormDefault="qualified" attributeFormDefault="qualified" targetNamespace="urn:com.workday.report/Stitch_Testing_2">
     <xsd:element name="Report_Data" type="wd:Report_DataType"/>
     <xsd:simpleType name="RichText">
@@ -34,27 +34,32 @@ xsd = """<?xml version="1.0" encoding="UTF-8"?>
 </xsd:schema>
 """
 
-class DiscoveryTest(unittest.TestCase):
 
+def test_generate_schema_for_report() -> None:
+    expected = {
+        "properties": {
+            "Average_Pay_-_Amount": {
+                "type": ["string", "null"],
+                "format": "singer.decimal",
+            },
+            "Business_Unit_or_Business_Unit_Hierarchy_Container": {"type": ["string", "null"]},
+            "Candidate_Details_group": {
+                "items": {
+                    "properties": {
+                        "Employee": {"type": ["string", "null"]},
+                        "Potential": {"type": ["string", "null"]},
+                        "Willing_To_Travel": {"type": ["string", "null"]},
+                    },
+                    "type": "object",
+                },
+                "type": "array",
+            },
+            "Default_Assessment_Tests": {"type": ["string", "null"]},
+            "Default_Job_Title": {"type": ["string", "null"]},
+            "Languages": {"type": ["string", "null"]},
+            "job_profile_id": {"type": ["string", "null"]},
+        },
+        "type": "object",
+    }
 
-    def test_generate_schema_for_report(self):
-
-        expected = {'properties':
-                    {'Average_Pay_-_Amount': {
-                                              'type': ['number', 'null']},
-                     'Business_Unit_or_Business_Unit_Hierarchy_Container': {'type': ['string', 'null']},
-                     'Candidate_Details_group': {'items':
-                                                 {'properties': {'Employee': {'type': ['string', 'null']},
-                                                                 'Potential': {'type': ['string', 'null']},
-                                                                 'Willing_To_Travel': {'type': ['string', 'null']}},
-                                                  'type': 'object'},
-                                                 'type': 'array'},
-                     'Default_Assessment_Tests': {'type': ['string', 'null']},
-                     'Default_Job_Title': {'type': ['string', 'null']},
-                     'Languages': {'type': ['string', 'null']},
-                     'job_profile_id': {'type': ['string', 'null']}},
-                    'type': 'object'}
-
-        actual = discover.generate_schema_for_report(xsd)
-        
-        self.assertEqual(expected, actual)
+    assert generate_schema_for_report(XSD) == expected

@@ -1,0 +1,21 @@
+{
+    "username": "workday_username",
+    "password": "workday_password",
+    "request_timeout": 300,
+    "reports": [
+      {
+        "report_name": "posted_transactions",
+        "report_url": "https://wd2-impl-services1.workday.com/ccx/service/customreport2/tenant/user/ReportName",
+        "key_properties": ["Transaction_ID"],
+        "state_param": "Posted_Date",
+        "replication_key": "Posted_Date",
+        "start_date": "2024-06-01T00:00:00Z",
+        "state_param_format": "datetime"
+      },
+      {
+        "report_name": "employee_snapshot",
+        "report_url": "https://wd2-impl-services1.workday.com/ccx/service/customreport2/tenant/user/Employees",
+        "key_properties": ["Employee_ID"]
+      }
+    ]
+  }

@@ -1,72 +1,123 @@
 # tap-workday-raas
 
-[![PyPI version](https://badge.fury.io/py/tap-mysql.svg)](https://badge.fury.io/py/tap-workday-raas)
-[![CircleCI Build Status](https://circleci.com/gh/singer-io/tap-workday-raas.png)](https://circleci.com/gh/singer-io/tap-workday-raas.png)
+Singer tap for extracting data from [Workday Report-as-a-Service (RaaS)](https://www.workday.com/) custom reports. Built with the [Meltano Singer SDK](https://sdk.meltano.com).
 
+Each configured report becomes a Singer stream. Schemas are discovered from Workday XSD metadata. Report data is streamed as JSON and emitted in Singer format for loading into warehouses such as Snowflake.
 
-[Singer](https://www.singer.io/) tap that extracts data from a [Workday](https://www.workday.com/) report and produces JSON-formatted data following the [Singer spec](https://github.com/singer-io/getting-started/blob/master/SPEC.md).
+## Installation
 
 ```bash
-$ mkvirtualenv -p python3 tap-workday-raas
-$ pip install tap-workday-raas
-$ tap-workday-raas --config config.json --discover
-$ tap-workday-raas --config config.json --properties properties.json --state state.json
+uv sync
 ```
 
-# Quickstart
+## Configuration
 
-Ensure poetry is installed on your machine. 
+Create a `config.json` file:
 
-- This command will return the installed version of poetry if it is installed.
-```
-poetry --version
-```
-
-- If not, install poetry using the following commands (from https://python-poetry.org/docs/#installation):
-```
-curl -sSL https://install.python-poetry.org | python3 -
-PATH=~/.local/bin:$PATH
-```
-
-Within the `tap-workday-raas` directory, install dependencies:
-```
-poetry install
-```
-
-Then run the tap:
-```
-poetry run tap-workday-raas <options>
-```
-## Create Config
-
-   Create your tap's `config.json` file.  The tap config file for this tap should include these entries:
-
-   - `username` - The username of the workday account with access to the reports to extract
-   - `password` - The password of the workday account with access to the reports to extract
-   - `reports` -  An array containing a list of objects containing the `report_name` and `report_url`. `report_name` is the name of the stream for the report, and the `report_url` is the URL to the Workday XML REST link for the report you wish to extract.
-
-   ```json
-   {
-       "username": "<username>",
-       "password": "<password>",
-       "reports": [{"report_name": "abitrary_name", "report_url": "https://..."},]
-   }
-   ```
-
-## Run Discovery
-
-To run discovery mode, execute the tap with the config file.
-
-```
-> tap-workday-raas --config config.json --discover > properties.json
+```json
+{
+  "username": "workday_username",
+  "password": "workday_password",
+  "request_timeout": 300,
+  "reports": [
+    {
+      "report_name": "posted_transactions",
+      "report_url": "https://wd2-impl-services1.workday.com/ccx/service/customreport2/tenant/user/ReportName",
+      "key_properties": ["Transaction_ID"],
+      "state_param": "Posted_Date",
+      "replication_key": "Posted_Date",
+      "start_date": "2024-06-01T00:00:00Z",
+      "state_param_format": "datetime"
+    },
+    {
+      "report_name": "employee_snapshot",
+      "report_url": "https://wd2-impl-services1.workday.com/ccx/service/customreport2/tenant/user/Employees",
+      "key_properties": ["Employee_ID"]
+    }
+  ]
+}
 ```
 
-## Sync Data
+### Top-level settings
 
-To sync data, select fields in the `properties.json` output and run the tap.
+| Setting | Required | Description |
+|---------|----------|-------------|
+| `username` | Yes | Workday username (HTTP Basic Auth) |
+| `password` | Yes | Workday password |
+| `reports` | Yes | Array of report definitions |
+| `request_timeout` | No | HTTP timeout in seconds for report and schema requests (default: `300`). Set to `null` for no timeout. |
 
+### Report object
+
+| Setting | Required | Description |
+|---------|----------|-------------|
+| `report_name` | Yes | Singer stream name |
+| `report_url` | Yes | Full Workday custom report URL |
+| `key_properties` | No | Primary key fields |
+| `state_param` | No | Query param to inject bookmark into (incremental) |
+| `replication_key` | No | Field whose max value becomes next bookmark |
+| `start_date` | No | Initial datetime bookmark for the first incremental sync |
+| `start_value` | No | Initial numeric or string bookmark for the first incremental sync |
+| `state_param_format` | No | Format for datetime bookmarks in the report URL (default: `datetime`) |
+
+#### `state_param_format` values
+
+| Value | Workday pattern | Example |
+|-------|-----------------|---------|
+| `date` | `yyyy-MM-dd` | `2024-06-01` |
+| `datetime` | ISO 8601 with milliseconds | `2026-06-29T07:00:00.000-07:00` or `2025-07-01T00:00:00.000Z` (UTC) |
+
+Only applies when the bookmark value is a date or datetime. Numeric and string bookmarks are passed through unchanged.
+
+When both `state_param` and `replication_key` are set, the stream uses **incremental** replication. Workday filters data server-side via the injected URL parameter. Otherwise the stream is **full table**.
+
+Numeric bookmark example:
+
+```json
+{
+  "report_name": "ledger_entries",
+  "report_url": "https://.../LedgerReport",
+  "state_param": "Last_Entry_ID",
+  "replication_key": "Entry_ID",
+  "start_value": "0"
+}
 ```
-> tap-workday-raas --config config.json --properties properties.json [--state state.json]
+
+See [.env.example](.env.example) for environment variable names when using Meltano.
+
+## Usage
+
+```bash
+# Discover available streams and schemas
+tap-workday-raas --config config.json --discover > catalog.json
+
+# Sync selected streams
+tap-workday-raas --config config.json --catalog catalog.json --state state.json
 ```
 
-Copyright &copy; 2020 Stitch
+### Meltano
+
+```bash
+meltano install
+meltano invoke tap-workday-raas --discover
+meltano run tap-workday-raas target-jsonl
+```
+
+## Development
+
+```bash
+uv sync
+uv run pytest
+```
+
+## License
+
+This project is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later).
+
+The [Meltano Singer SDK](https://github.com/meltano/sdk) is used as a dependency under the MIT License.
+
+## Acknowledgments
+
+This project is based on [singer-io/tap-workday-raas](https://github.com/singer-io/tap-workday-raas), originally developed by Stitch for extracting data from Workday Report-as-a-Service (RaaS) endpoints. Core concepts ported include XSD-driven schema discovery, streaming `Report_Entry` JSON parsing, and Workday-specific error handling. Modifications include migration to the Meltano Singer SDK and incremental sync via URL state injection.
+
+See [NOTICE](NOTICE) for full attribution.
