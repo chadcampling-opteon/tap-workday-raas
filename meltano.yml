@@ -36,8 +36,9 @@ plugins:
         replication_key, start_date, start_value, and state_param_format.
 
     - name: request_timeout
-      kind: number
+      kind: integer
       label: Request timeout
+      value: 300
       description: >
         HTTP request timeout in seconds for report and schema downloads.
         Defaults to 300. Set to null for no timeout.

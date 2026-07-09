@@ -97,10 +97,11 @@ class TapWorkdayRaas(Tap):
         ),
         th.Property(
             "request_timeout",
-            th.NumberType,
+            th.IntegerType(nullable=True),
+            default=300,
             description=(
                 "HTTP request timeout in seconds for report and schema downloads. "
-                "Omit for the default (300). Set to null for no timeout."
+                "Set to null for no timeout."
             ),
         ),
     ).to_dict()
