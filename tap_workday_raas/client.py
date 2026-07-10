@@ -18,7 +18,7 @@ import os
 import tempfile
 import threading
 import time
-from collections.abc import Iterator, Mapping
+from collections.abc import Generator, Iterator, Mapping
 from contextlib import suppress
 from datetime import date, datetime
 from typing import Any
@@ -274,7 +274,7 @@ def stream_report(
     password: str,
     *,
     timeout: float | None = DEFAULT_REQUEST_TIMEOUT,
-) -> Iterator[dict]:
+) -> Generator[dict, None, None]:
     """Stream Report_Entry records from a Workday RaaS JSON report.
 
     The HTTP response is drained to a temporary file on disk in a background

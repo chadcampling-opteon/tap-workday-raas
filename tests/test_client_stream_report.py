@@ -9,7 +9,8 @@ import tempfile
 import time
 from unittest.mock import patch
 
-import ijson.common
+from typing_extensions import override
+
 import pytest
 
 from tap_workday_raas.client import stream_report
@@ -25,7 +26,8 @@ SAMPLE_REPORT = {
 class _SlowBytesIO(io.BytesIO):
     """Byte stream that pauses on read to simulate a slow HTTP download."""
 
-    def read(self, size: int = -1) -> bytes:
+    @override
+    def read(self, size: int | None = -1) -> bytes:
         time.sleep(0.01)
         return super().read(size)
 
@@ -33,10 +35,10 @@ class _SlowBytesIO(io.BytesIO):
 class _VerySlowBytesIO(io.BytesIO):
     """Byte stream that drips slowly so abort can happen mid-download."""
 
-    def read(self, size: int = -1) -> bytes:
+    @override
+    def read(self, size: int | None = -1) -> bytes:
         time.sleep(0.2)
         return super().read(32)
-
 
 def test_stream_report_yields_records(requests_mock) -> None:  # noqa: ANN001
     requests_mock.get(
@@ -56,8 +58,13 @@ def test_stream_report_removes_temp_file(requests_mock) -> None:  # noqa: ANN001
 
     original_mkstemp = tempfile.mkstemp
 
-    def tracking_mkstemp(*args: object, **kwargs: object) -> tuple[int, str]:
-        fd, path = original_mkstemp(*args, **kwargs)
+    def tracking_mkstemp(
+        suffix: str | None = None,
+        prefix: str | None = None,
+        dir: str | None = None,  # noqa: A002
+        text: bool = False,
+    ) -> tuple[int, str]:
+        fd, path = original_mkstemp(suffix=suffix, prefix=prefix, dir=dir, text=text)
         created_paths.append(path)
         return fd, path
 
@@ -90,12 +97,14 @@ def test_stream_report_logs_zero_record_report(requests_mock, caplog) -> None:  
 
 
 def test_stream_report_raises_on_truncated_download(requests_mock) -> None:  # noqa: ANN001
+    from ijson.common import IncompleteJSONError  # type: ignore[import-untyped]
+
     truncated = b'{"Report_Entry": [{"Entry_ID": "1"}, {"Entry_ID": "2"}, '
     requests_mock.get(
         "https://example.com/report",
         content=truncated,
     )
-    with pytest.raises(ijson.common.IncompleteJSONError):
+    with pytest.raises(IncompleteJSONError):
         list(stream_report("https://example.com/report", "user", "pass"))
 
 
