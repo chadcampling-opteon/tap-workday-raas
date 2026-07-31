@@ -101,7 +101,7 @@ class WorkdayRaasStream(Stream):
 
     @override
     def post_process(self, row: Record, context: Context | None = None) -> Record | None:
-        """Coerce Workday values (booleans, decimals) before emission."""
+        """Coerce Workday values (booleans, decimals, dates) before emission."""
         coerced = coerce_record(dict(row), self.schema)
         return super().post_process(coerced, context)
 

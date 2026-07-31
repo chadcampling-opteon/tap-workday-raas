@@ -19,6 +19,8 @@ XSD = """<?xml version="1.0" encoding="UTF-8"?>
         <xsd:sequence>
             <xsd:element name="Default_Job_Title" type="xsd:string" minOccurs="0"/>
             <xsd:element name="Average_Pay_-_Amount" type="xsd:decimal" minOccurs="0"/>
+            <xsd:element name="Hire_Date" type="xsd:date" minOccurs="0"/>
+            <xsd:element name="Last_Updated" type="xsd:dateTime" minOccurs="0"/>
             <xsd:element name="job_profile_id" type="xsd:string" minOccurs="0"/>
             <xsd:element name="Languages" type="xsd:string" minOccurs="0"/>
             <xsd:element name="Default_Assessment_Tests" type="xsd:string" minOccurs="0"/>
@@ -56,7 +58,9 @@ def test_generate_schema_for_report() -> None:
             },
             "Default_Assessment_Tests": {"type": ["string", "null"]},
             "Default_Job_Title": {"type": ["string", "null"]},
+            "Hire_Date": {"type": ["string", "null"], "format": "date"},
             "Languages": {"type": ["string", "null"]},
+            "Last_Updated": {"type": ["string", "null"], "format": "date-time"},
             "job_profile_id": {"type": ["string", "null"]},
         },
         "type": "object",

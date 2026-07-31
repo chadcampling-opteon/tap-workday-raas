@@ -31,8 +31,10 @@ def _element_to_schema(element: Element) -> dict:
 
     is_list = max_occurs == "unbounded"
 
-    if elem_type in ("date", "dateTime"):
-        schema: dict = {"type": ["string"], "format": "date-time"}
+    if elem_type == "date":
+        schema: dict = {"type": ["string"], "format": "date"}
+    elif elem_type == "dateTime":
+        schema = {"type": ["string"], "format": "date-time"}
     elif elem_type == "decimal":
         schema = {"type": ["string"], "format": "singer.decimal"}
     else:

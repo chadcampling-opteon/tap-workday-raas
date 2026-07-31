@@ -17,6 +17,25 @@ def test_apply_format_json_adds_param() -> None:
     assert "Posted_Date=01%2F01%2F2024" in result
 
 
+def test_apply_format_json_accepts_semicolon_param_separator() -> None:
+    """Workday often uses ';' between prompts; preserve them as separate params."""
+    url = (
+        "https://wd3-services1.myworkday.com/ccx/service/customreport2/"
+        "opteon/user/Learning_Assignments_Report?"
+        "Include_Subordinate_Organizations=1;"
+        "Learning_Organizations_for_Learning_Assignment!WID="
+        "d78d9e84e15001559b3f264d00022d97"
+    )
+    result = apply_format_json(url)
+    assert "Include_Subordinate_Organizations=1" in result
+    assert (
+        "Learning_Organizations_for_Learning_Assignment%21WID="
+        "d78d9e84e15001559b3f264d00022d97" in result
+    )
+    assert "1%3BLearning" not in result
+    assert "format=json" in result
+
+
 def test_apply_format_json_replaces_existing_format() -> None:
     url = "https://example.workday.com/report/MyReport?format=csv&Other=1"
     result = apply_format_json(url)

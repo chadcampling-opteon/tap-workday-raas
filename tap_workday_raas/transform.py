@@ -13,10 +13,13 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
 SINGER_DECIMAL_FORMAT = "singer.decimal"
+DATE_FORMAT = "date"
+DATE_TIME_FORMAT = "date-time"
 
 
 def _coerce_boolean(value: Any) -> Any:
@@ -46,6 +49,58 @@ def _coerce_singer_decimal(value: Any) -> str | None:
     return str(value)
 
 
+def _parse_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    if isinstance(value, str):
+        if not value:
+            return None
+        normalized = value.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+    return None
+
+
+def _coerce_datetime_to_utc(value: Any) -> str | None:
+    """Normalize date-time values to UTC with a ``Z`` suffix.
+
+    Matches the legacy singer-python Transformer behaviour used by the
+    original tap: parse the Workday offset, convert to UTC, emit
+    ``YYYY-MM-DDTHH:MM:SS.ffffffZ``.
+    """
+    if value is None or value == "":
+        return None
+
+    parsed = _parse_datetime(value)
+    if parsed is None:
+        return None
+
+    if parsed.tzinfo is None:
+        utc_dt = parsed.replace(tzinfo=timezone.utc)
+    else:
+        utc_dt = parsed.astimezone(timezone.utc)
+
+    return utc_dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def _coerce_date(value: Any) -> str | None:
+    """Normalize calendar dates to ``YYYY-MM-DD`` (no timezone)."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, str):
+        # Workday may occasionally include a time; keep the calendar day.
+        return value[:10] if len(value) >= 10 else value
+    return str(value)
+
+
 def _walk_schema(value: Any, schema: dict) -> Any:
     if value is None:
         return None
@@ -63,8 +118,13 @@ def _walk_schema(value: Any, schema: dict) -> Any:
         items = schema.get("items", {})
         return [_walk_schema(item, items) for item in value]
 
-    if schema.get("format") == SINGER_DECIMAL_FORMAT:
+    fmt = schema.get("format")
+    if fmt == SINGER_DECIMAL_FORMAT:
         return _coerce_singer_decimal(value)
+    if fmt == DATE_TIME_FORMAT:
+        return _coerce_datetime_to_utc(value)
+    if fmt == DATE_FORMAT:
+        return _coerce_date(value)
 
     types = schema_type if isinstance(schema_type, list) else [schema_type]
     if "boolean" in types:

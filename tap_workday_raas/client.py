@@ -78,13 +78,20 @@ def resolve_request_timeout(config: Mapping[str, Any]) -> float | None:
 def _parse_query_string(query: str) -> dict[str, str]:
     """Decode a query string into raw parameter values.
 
+    Splits on both ``&`` and ``;`` — Workday RaaS URLs often use semicolon as
+    the parameter separator (CGI-style). The legacy tap preserved these by
+    only rewriting the query with ``split("&")`` / ``"&".join(...)``, so a
+    semicolon-separated prompt list was left intact; re-encoding without
+    treating ``;`` as a separator collapses those prompts into one value.
+
     Uses ``unquote`` (not ``unquote_plus``) so a literal ``+`` in a value is
     never mistaken for a space.
     """
     if not query:
         return {}
     params: dict[str, str] = {}
-    for part in query.split("&"):
+    # Split on & or ; before decoding so %3B / %26 in values stay intact.
+    for part in query.replace(";", "&").split("&"):
         if not part:
             continue
         key, sep, value = part.partition("=")
