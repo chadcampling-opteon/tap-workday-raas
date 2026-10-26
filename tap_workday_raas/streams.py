@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from singer_sdk.exceptions import ConfigValidationError
@@ -20,10 +21,12 @@ from singer_sdk.streams import Stream
 from tap_workday_raas.client import (
     apply_format_json,
     build_report_url,
+    format_state_value,
     resolve_request_timeout,
     stream_report,
 )
 from tap_workday_raas.datetime_formats import DEFAULT_BOOKMARK_FORMAT, BookmarkFormat
+from tap_workday_raas.paging import PageWindow, Paging, next_page_window, paging_from_report
 from tap_workday_raas.transform import coerce_record
 
 if sys.version_info >= (3, 12):
@@ -46,6 +49,7 @@ class WorkdayRaasStream(Stream):
     state_param: ClassVar[str | None] = None
     state_param_format: ClassVar[BookmarkFormat] = DEFAULT_BOOKMARK_FORMAT
     report_config: ClassVar[Mapping[str, Any]]
+    paging: ClassVar[Paging | None] = None
 
     @property
     def is_incremental(self) -> bool:
@@ -83,21 +87,94 @@ class WorkdayRaasStream(Stream):
             state_param_format=self.state_param_format,
         )
 
-    @override
-    def get_records(self, context: Context | None) -> Iterable[dict]:
-        """Fetch records from the Workday report URL."""
-        url = self.resolve_sync_url(context)
+    def _utc_now(self) -> datetime:
+        """Return the current UTC time, split out so tests can freeze the ceiling."""
+        return datetime.now(timezone.utc)
+
+    def _iter_report(self, url: str) -> Iterable[dict]:
+        """Stream one report response."""
         username = self.config["username"]
         password = self.config["password"]
         timeout = resolve_request_timeout(self.config)
-
         self.logger.info('Syncing report "%s" from %s.', self.name, url)
+        yield from stream_report(url, username, password, timeout=timeout)
+
+    def _page_url(self, window: PageWindow) -> str:
+        """Build the report URL for one paging window."""
+        paging = self.paging
+        if paging is None or not self.state_param:
+            msg = f"Report '{self.name}' is not configured for paging"
+            raise ConfigValidationError(msg)
+        return build_report_url(
+            self.report_url,
+            state_param=self.state_param,
+            state_value=window.start,
+            state_param_format=self.state_param_format,
+            page_param=paging.param,
+            page_value=window.end,
+        )
+
+    @override
+    def get_records(self, context: Context | None) -> Iterable[dict]:
+        """Fetch records from the Workday report URL."""
+        if self.paging is None:
+            yield from self._sync_single_request(context)
+            return
+        yield from self._sync_paged(context)
+
+    def _sync_single_request(self, context: Context | None) -> Iterable[dict]:
+        """Fetch the report once, leaving any end-date parameter on the URL as-is."""
         record_count = 0
-        for record in stream_report(url, username, password, timeout=timeout):
+        for record in self._iter_report(self.resolve_sync_url(context)):
             record_count += 1
             yield record
-
         self.logger.info("%s: Completed sync (%s rows)", self.name, record_count)
+
+    def _sync_paged(self, context: Context | None) -> Iterable[dict]:
+        """Walk windows in memory. The replication bookmark stays the max key seen.
+
+        The window end is not written to state. An empty window does not mean
+        that range is complete, and report rows are not assumed to be ordered
+        by the replication key.
+        """
+        paging = self.paging
+        if paging is None:
+            return
+
+        cursor = self.get_starting_replication_key_value(context)
+        if cursor is None:
+            cursor = self.resolve_initial_bookmark()
+
+        total = 0
+        while True:
+            window = next_page_window(cursor, paging, now=self._utc_now())
+            if window is None:
+                self.logger.info(
+                    "%s: bookmark is at or past the paging ceiling",
+                    self.name,
+                )
+                break
+
+            self.logger.info(
+                "%s: paging window %s to %s.",
+                self.name,
+                format_state_value(window.start, self.state_param_format),
+                format_state_value(window.end, self.state_param_format),
+            )
+            page_count = 0
+            for record in self._iter_report(self._page_url(window)):
+                page_count += 1
+                total += 1
+                yield record
+
+            if window.stop_on_empty and page_count == 0:
+                self.logger.info("%s: empty numeric page, stopping paging", self.name)
+                break
+            if window.is_last:
+                break
+            cursor = window.end
+
+        self.logger.info("%s: Completed sync (%s rows)", self.name, total)
 
     @override
     def post_process(self, row: Record, context: Context | None = None) -> Record | None:
@@ -122,6 +199,7 @@ def create_report_stream(
         "state_param": state_param,
         "state_param_format": report.get("state_param_format", DEFAULT_BOOKMARK_FORMAT),
         "report_config": report,
+        "paging": paging_from_report(report),
         "name": report["report_name"],
         "primary_keys": tuple(key_properties),
         "schema": schema,

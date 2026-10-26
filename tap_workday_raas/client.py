@@ -126,6 +126,11 @@ def apply_format_json(report_url: str) -> str:
     return _with_query_params(report_url, {"format": "json"})
 
 
+def parse_datetime_value(value: Any) -> datetime | None:
+    """Return a datetime when ``value`` is a date or datetime, else None."""
+    return _parse_datetime(value)
+
+
 def _parse_datetime(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         return value
@@ -168,16 +173,23 @@ def build_report_url(
     state_param: str | None = None,
     state_value: Any = None,
     state_param_format: BookmarkFormat = DEFAULT_BOOKMARK_FORMAT,
+    page_param: str | None = None,
+    page_value: Any = None,
 ) -> str:
-    """Build a report URL with format=json and optional state param injection."""
-    url = apply_format_json(report_url)
-    if not state_param or state_value is None:
-        return url
+    """Build a report URL with format=json and optional bound injection.
 
-    return _with_query_params(
-        url,
-        {state_param: format_state_value(state_value, state_param_format)},
-    )
+    ``page_param`` is the window upper bound. It overwrites the same query
+    parameter when the report URL already contains it.
+    """
+    url = apply_format_json(report_url)
+    updates: dict[str, str | None] = {}
+    if state_param and state_value is not None:
+        updates[state_param] = format_state_value(state_value, state_param_format)
+    if page_param and page_value is not None:
+        updates[page_param] = format_state_value(page_value, state_param_format)
+    if not updates:
+        return url
+    return _with_query_params(url, updates)
 
 
 def _download_report_to_file(

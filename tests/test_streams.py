@@ -101,6 +101,79 @@ def test_get_records_yields_post_processed_rows(
     )
 
 
+@patch("tap_workday_raas.streams.stream_report")
+def test_paging_requests_each_window_including_an_empty_middle_page(
+    mock_stream_report,
+    tap: TapWorkdayRaas,
+) -> None:
+    mock_stream_report.side_effect = [
+        iter([]),
+        iter([{"Posted_Date": "2022-07-13T00:00:00Z", "Entry_ID": "1"}]),
+        iter([{"Posted_Date": "2022-07-27T00:00:00Z", "Entry_ID": "2"}]),
+    ]
+    report = {
+        "report_name": "paged_journal",
+        "report_url": "https://example.com/report/Journal?Date_To=",
+        "state_param": "Date_From",
+        "replication_key": "Posted_Date",
+        "start_date": "2022-06-28T00:00:00Z",
+        "paging": {
+            "param": "Date_To",
+            "size": "P14D",
+            "until": "2022-08-03T00:00:00Z",
+        },
+    }
+    stream = create_report_stream(tap, report, SAMPLE_SCHEMA)
+    state = stream.get_context_state(None)
+    state["replication_key"] = "Posted_Date"
+    state["replication_key_value"] = "2022-06-28T00:00:00Z"
+
+    records = list(stream.get_records(None))
+
+    assert records == [
+        {"Posted_Date": "2022-07-13T00:00:00Z", "Entry_ID": "1"},
+        {"Posted_Date": "2022-07-27T00:00:00Z", "Entry_ID": "2"},
+    ]
+    assert mock_stream_report.call_count == 3
+    urls = [call.args[0] for call in mock_stream_report.call_args_list]
+    assert "Date_From=2022-06-28T00%3A00%3A00.000Z" in urls[0]
+    assert "Date_To=2022-07-12T00%3A00%3A00.000Z" in urls[0]
+    assert "Date_From=2022-07-12T00%3A00%3A00.000Z" in urls[1]
+    assert "Date_To=2022-07-26T00%3A00%3A00.000Z" in urls[1]
+    assert "Date_From=2022-07-26T00%3A00%3A00.000Z" in urls[2]
+    assert "Date_To=2022-08-03T00%3A00%3A00.000Z" in urls[2]
+    assert state["replication_key_value"] == "2022-06-28T00:00:00Z"
+
+
+@patch("tap_workday_raas.streams.stream_report")
+def test_open_numeric_paging_stops_after_an_empty_page(
+    mock_stream_report,
+    tap: TapWorkdayRaas,
+) -> None:
+    mock_stream_report.side_effect = [
+        iter([{"Entry_ID": "10"}]),
+        iter([]),
+    ]
+    report = {
+        "report_name": "paged_entries",
+        "report_url": "https://example.com/report/Entries",
+        "state_param": "From_ID",
+        "replication_key": "Entry_ID",
+        "start_value": "0",
+        "paging": {"param": "To_ID", "size": 1000},
+    }
+    stream = create_report_stream(tap, report, SAMPLE_SCHEMA)
+    records = list(stream.get_records(None))
+    assert records == [{"Entry_ID": "10"}]
+    assert mock_stream_report.call_count == 2
+    urls = [call.args[0] for call in mock_stream_report.call_args_list]
+    assert "From_ID=0" in urls[0]
+    assert "To_ID=1000" in urls[0]
+    assert "From_ID=1000" in urls[1]
+    assert "To_ID=2000" in urls[1]
+    assert "replication_key_value" not in stream.get_context_state(None)
+
+
 def test_resolve_sync_url_uses_date_format(tap: TapWorkdayRaas) -> None:
     report = {
         "report_name": "date_report",

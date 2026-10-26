@@ -84,10 +84,7 @@ def test_apply_format_json_encodes_special_characters_in_param_names() -> None:
 
 
 def test_apply_format_json_preserves_utc_offset_in_posted_date() -> None:
-    url = (
-        "https://example.workday.com/report/MyReport?"
-        "Posted_Date=2025-07-01T00:00:00.000%2B00:00"
-    )
+    url = "https://example.workday.com/report/MyReport?Posted_Date=2025-07-01T00:00:00.000%2B00:00"
     result = apply_format_json(url)
     assert "Posted_Date=2025-07-01T00%3A00%3A00.000%2B00%3A00" in result
     assert "%20" not in result
@@ -115,6 +112,20 @@ def test_format_state_value_numeric() -> None:
 
 def test_format_state_value_string() -> None:
     assert format_state_value("abc-123") == "abc-123"
+
+
+def test_build_report_url_sets_upper_bound() -> None:
+    result = build_report_url(
+        "https://example.workday.com/report/MyReport?Date_To=",
+        state_param="Date_From",
+        state_value=datetime(2022, 6, 28, tzinfo=timezone.utc),
+        page_param="Date_To",
+        page_value=datetime(2022, 7, 12, tzinfo=timezone.utc),
+    )
+    assert "Date_From=2022-06-28T00%3A00%3A00.000Z" in result
+    assert "Date_To=2022-07-12T00%3A00%3A00.000Z" in result
+    assert "Date_To=" not in result.replace("Date_To=2022-07-12T00%3A00%3A00.000Z", "")
+    assert "format=json" in result
 
 
 def test_build_report_url_replaces_existing_state_param() -> None:
