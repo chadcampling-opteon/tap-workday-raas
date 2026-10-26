@@ -34,6 +34,7 @@ plugins:
         Workday RaaS reports to extract. Each report object requires report_name
         and report_url. Optional incremental fields include state_param,
         replication_key, start_date, start_value, and state_param_format.
+        Optional paging object fields are param, size, and until. See the README.
 
     - name: request_timeout
       kind: integer

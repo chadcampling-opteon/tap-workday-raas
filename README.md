@@ -59,6 +59,7 @@ Create a `config.json` file:
 | `start_date` | No | Initial datetime bookmark for the first incremental sync |
 | `start_value` | No | Initial numeric or string bookmark for the first incremental sync |
 | `state_param_format` | No | Format for datetime bookmarks in the report URL (default: `datetime`) |
+| `paging` | No | Optional windowing object with `param`, `size`, and `until` |
 
 #### `state_param_format` values
 
@@ -82,6 +83,42 @@ Numeric bookmark example:
   "start_value": "0"
 }
 ```
+
+#### Paging
+
+`paging` splits one incremental sync into windows. The tap sets `state_param` to the window start and `paging.param` to the window end on every request, so the Workday prompt can be required. Reports that omit `paging` are unchanged: one request, and any end-date parameter already on `report_url` is left as-is.
+
+There is no paging mode. A bookmark that parses as a datetime uses date windows, and both bounds are written with `state_param_format`. A numeric bookmark steps by `size`. `state_param_format` still only formats datetimes. It defaults to `datetime` even for numeric reports, so it is not the date-versus-number switch.
+
+| `paging` field | Description |
+| --- | --- |
+| `param` | Upper-bound query parameter. Must differ from `state_param`. |
+| `size` | Datetime bookmarks: an ISO-8601 duration (`P14D`, `P1M`, `P1W`, `PT12H`) or a positive number of days. Numeric bookmarks: a positive step. |
+| `until` | Optional ceiling. Blank or omitted means UTC now for a datetime bookmark. For a numeric bookmark, omitted means stop after the first empty page. |
+
+`P1M` adds one calendar month to the window start (28 Jun becomes 28 Jul). The day is clamped only when that day does not exist (31 Jan becomes 28 or 29 Feb).
+
+Windows are inclusive, so the next window starts where the previous one ended. A boundary row can appear in both pages. Primary keys absorb that on upsert.
+
+The bookmark stored in Singer state stays the maximum replication key emitted by the SDK. The tap does not advance state to the window end. Report sort order is not assumed to match the replication key, and an empty window is requested again on the next run. A crash resumes from the largest key actually emitted.
+
+```json
+{
+  "report_name": "supplier_invoices",
+  "report_url": "https://.../SNOW_-_Supplier_Invoices",
+  "state_param": "Start_Date",
+  "replication_key": "Last_Updated",
+  "start_date": "2022-06-28T00:00:00Z",
+  "state_param_format": "datetime",
+  "paging": {
+    "param": "End_Date",
+    "size": "P14D",
+    "until": "2022-08-01T00:00:00Z"
+  }
+}
+```
+
+Leave `until` blank to page through to the current time. A numeric report uses the same object with a numeric `size` and `start_value`.
 
 See [.env.example](.env.example) for environment variable names when using Meltano.
 

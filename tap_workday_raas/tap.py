@@ -64,6 +64,40 @@ REPORT_CONFIG_SCHEMA = th.PropertiesList(
             "'date' (yyyy-MM-dd) or 'datetime' (ISO 8601 with milliseconds)"
         ),
     ),
+    th.Property(
+        "paging",
+        th.ObjectType(
+            th.Property(
+                "param",
+                th.StringType(nullable=False),
+                required=True,
+                description="Query parameter name for the window upper bound",
+            ),
+            th.Property(
+                "size",
+                th.CustomType({"type": ["string", "integer", "number"]}),
+                required=True,
+                description=(
+                    "Window size. A datetime bookmark accepts an ISO-8601 duration "
+                    "(P14D, P1M, P1W, PT12H) or a positive number of days. "
+                    "A numeric bookmark accepts a positive step."
+                ),
+            ),
+            th.Property(
+                "until",
+                th.CustomType({"type": ["string", "integer", "number", "null"]}),
+                description=(
+                    "Optional ceiling. Blank or omitted means UTC now for a datetime "
+                    "bookmark, or stop after the first empty page for a numeric bookmark."
+                ),
+            ),
+            additional_properties=False,
+        ),
+        description=(
+            "Optional auto-paging. The tap requests one window at a time from the "
+            "bookmark to the ceiling, injecting param as the upper bound."
+        ),
+    ),
 )
 
 
