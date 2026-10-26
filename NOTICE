@@ -1,0 +1,21 @@
+opteon-tap-workday-raas
+Copyright (c) 2026 Opteon Solutions
+
+This project is a derivative work based on tap-workday-raas:
+  https://github.com/singer-io/tap-workday-raas
+  Copyright (c) Stitch
+  Licensed under the GNU Affero General Public License v3.0
+
+Modifications in this repository include:
+  - Migration from singer-python to the Meltano Singer SDK
+  - Per-report incremental sync via state_param URL injection
+  - Type-aware bookmark formatting (datetime, numeric, and string)
+  - Per-report start_date / start_value configuration for incremental sync
+  - Removal of Symon platform-specific error logging
+
+The Meltano Singer SDK (singer-sdk) is used as a dependency under the MIT License.
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. See LICENSE for the full license text.
